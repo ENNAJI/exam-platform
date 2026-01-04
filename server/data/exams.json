@@ -1,0 +1,24 @@
+[
+  {
+    "title": "Examen 1",
+    "description": "",
+    "duration": 30,
+    "courseId": "1767549077134",
+    "examType": "exam",
+    "questions": [],
+    "isActive": true,
+    "id": "1767551283293",
+    "createdAt": "2026-01-04T18:28:03.293Z"
+  },
+  {
+    "title": "Controle 1",
+    "description": "",
+    "duration": 30,
+    "courseId": "1767549077134",
+    "examType": "control",
+    "questions": [],
+    "isActive": true,
+    "id": "1767551295199",
+    "createdAt": "2026-01-04T18:28:15.199Z"
+  }
+]

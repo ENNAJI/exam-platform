@@ -18,22 +18,31 @@ export default function StudentPortal() {
       navigate('/login');
       return;
     }
-    setStudent(currentStudent);
+    // Rafraîchir les données de l'étudiant depuis le storage
+    const refreshedStudent = storage.getStudentById(currentStudent.id) || currentStudent;
+    setStudent(refreshedStudent);
     
-    const foundClass = storage.getClassById(currentStudent.classId);
+    const foundClass = storage.getClassById(refreshedStudent.classId);
     setClassData(foundClass);
     
     if (foundClass) {
       setCourses(storage.getCoursesByClass(foundClass.id));
     }
     
-    // Récupérer les examens planifiés pour cette classe
+    // Récupérer les examens planifiés pour cet étudiant spécifiquement
     const allScheduled = storage.getScheduledExams();
-    const studentScheduled = allScheduled.filter(s => s.classId === currentStudent.classId);
+    const studentScheduled = allScheduled.filter(s => {
+      // Vérifier si l'étudiant est dans la liste des étudiants invités
+      if (s.studentIds && s.studentIds.length > 0) {
+        return s.studentIds.includes(refreshedStudent.id);
+      }
+      // Sinon, vérifier par classe
+      return s.classId === refreshedStudent.classId;
+    });
     setScheduledExams(studentScheduled);
     
     // Récupérer les résultats de l'étudiant
-    setResults(storage.getResultsByStudent(currentStudent.id));
+    setResults(storage.getResultsByStudent(refreshedStudent.id));
   }, [navigate]);
 
   const handleLogout = () => {

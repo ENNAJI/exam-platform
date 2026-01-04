@@ -1,17 +1,29 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Edit, Trash2, Users, BookOpen, Eye } from 'lucide-react';
+import { Plus, Edit, Trash2, Users, BookOpen, Eye, Building2, ChevronDown, ChevronRight } from 'lucide-react';
 import Header from '../../components/Header';
 import { storage } from '../../data/storage';
 
 export default function ClassesManager() {
   const [classes, setClasses] = useState([]);
+  const [establishments, setEstablishments] = useState([]);
+  const [expandedEstablishments, setExpandedEstablishments] = useState({});
   const [showModal, setShowModal] = useState(false);
   const [editingClass, setEditingClass] = useState(null);
-  const [formData, setFormData] = useState({ name: '', description: '', year: '' });
+  const [selectedEstablishmentId, setSelectedEstablishmentId] = useState('');
+  const [formData, setFormData] = useState({ name: '', description: '', year: '', establishmentId: '' });
 
   useEffect(() => {
+    const teacher = storage.getCurrentTeacher();
     setClasses(storage.getClasses());
+    if (teacher) {
+      const teacherEstablishments = storage.getEstablishmentsByTeacher(teacher.id);
+      setEstablishments(teacherEstablishments);
+      // Expand all establishments by default
+      const expanded = {};
+      teacherEstablishments.forEach(e => { expanded[e.id] = true; });
+      setExpandedEstablishments(expanded);
+    }
   }, []);
 
   const handleSubmit = (e) => {
@@ -19,18 +31,42 @@ export default function ClassesManager() {
     if (editingClass) {
       storage.updateClass(editingClass.id, formData);
     } else {
-      storage.addClass(formData);
+      storage.addClass({ ...formData, establishmentId: selectedEstablishmentId || formData.establishmentId });
     }
     setClasses(storage.getClasses());
     setShowModal(false);
     setEditingClass(null);
-    setFormData({ name: '', description: '', year: '' });
+    setSelectedEstablishmentId('');
+    setFormData({ name: '', description: '', year: '', establishmentId: '' });
   };
 
   const handleEdit = (classItem) => {
     setEditingClass(classItem);
-    setFormData({ name: classItem.name, description: classItem.description, year: classItem.year });
+    setFormData({ 
+      name: classItem.name, 
+      description: classItem.description, 
+      year: classItem.year,
+      establishmentId: classItem.establishmentId || ''
+    });
     setShowModal(true);
+  };
+
+  const handleAddClassToEstablishment = (establishmentId) => {
+    setSelectedEstablishmentId(establishmentId);
+    setFormData({ name: '', description: '', year: '', establishmentId });
+    setShowModal(true);
+  };
+
+  const toggleEstablishment = (id) => {
+    setExpandedEstablishments(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const getClassesByEstablishment = (establishmentId) => {
+    return classes.filter(c => c.establishmentId === establishmentId);
+  };
+
+  const getOrphanClasses = () => {
+    return classes.filter(c => !c.establishmentId);
   };
 
   const handleDelete = (id) => {
@@ -48,55 +84,188 @@ export default function ClassesManager() {
     return storage.getCoursesByClass(classId).length;
   };
 
+  const renderClassCard = (classItem) => (
+    <div key={classItem.id} style={{
+      background: 'white',
+      border: '1px solid var(--gray-200)',
+      borderRadius: '8px',
+      padding: '16px'
+    }}>
+      <h4 style={{ margin: '0 0 8px 0', fontSize: '16px' }}>{classItem.name}</h4>
+      <p style={{ fontSize: '13px', color: 'var(--gray-600)', margin: '0 0 8px 0' }}>
+        {classItem.description?.substring(0, 60)}{classItem.description?.length > 60 ? '...' : ''}
+      </p>
+      <p style={{ fontSize: '12px', color: 'var(--gray-500)', margin: '0 0 12px 0' }}>
+        Année: {classItem.year}
+      </p>
+      
+      <div className="flex gap-2 mb-4" style={{ flexWrap: 'wrap' }}>
+        <span className="badge badge-info" style={{ fontSize: '11px' }}>
+          <Users size={10} style={{ display: 'inline', marginRight: '3px' }} />
+          {getStudentCount(classItem.id)} étudiants
+        </span>
+        <span className="badge badge-success" style={{ fontSize: '11px' }}>
+          <BookOpen size={10} style={{ display: 'inline', marginRight: '3px' }} />
+          {getCourseCount(classItem.id)} cours
+        </span>
+      </div>
+
+      <div className="flex gap-2">
+        <Link to={`/teacher/class/${classItem.id}`} className="btn btn-primary" style={{ padding: '6px 10px', fontSize: '12px' }}>
+          <Eye size={14} />
+        </Link>
+        <button onClick={() => handleEdit(classItem)} className="btn btn-secondary" style={{ padding: '6px 10px' }}>
+          <Edit size={14} />
+        </button>
+        <button onClick={() => handleDelete(classItem.id)} className="btn btn-danger" style={{ padding: '6px 10px' }}>
+          <Trash2 size={14} />
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div>
       <Header role="teacher" />
       <div className="container">
         <div className="flex flex-between flex-center mb-4">
-          <h2>Gestion des Classes</h2>
-          <button onClick={() => setShowModal(true)} className="btn btn-primary">
-            <Plus size={18} />
-            Nouvelle classe
-          </button>
+          <h2>
+            <Building2 size={28} style={{ display: 'inline', marginRight: '10px' }} />
+            Gestion des Classes
+          </h2>
+          <Link to="/teacher/establishments" className="btn btn-secondary">
+            <Building2 size={18} />
+            Gérer les établissements
+          </Link>
         </div>
 
-        {classes.length === 0 ? (
+        {establishments.length === 0 && classes.length === 0 ? (
           <div className="card text-center">
-            <p>Aucune classe créée. Commencez par créer votre première classe !</p>
+            <Building2 size={60} color="var(--gray-300)" style={{ marginBottom: '16px' }} />
+            <h3>Aucun établissement</h3>
+            <p style={{ color: 'var(--gray-600)', marginBottom: '20px' }}>
+              Commencez par créer un établissement pour y ajouter vos classes.
+            </p>
+            <Link to="/teacher/establishments" className="btn btn-primary">
+              <Plus size={18} />
+              Créer un établissement
+            </Link>
           </div>
         ) : (
-          <div className="grid">
-            {classes.map((classItem) => (
-              <div key={classItem.id} className="exam-card">
-                <h3>{classItem.name}</h3>
-                <p>{classItem.description}</p>
-                <p style={{ fontSize: '14px', color: 'var(--gray-600)' }}>Année: {classItem.year}</p>
-                
-                <div className="flex gap-2 mb-4 mt-4">
-                  <span className="badge badge-info">
-                    <Users size={12} style={{ display: 'inline', marginRight: '4px' }} />
-                    {getStudentCount(classItem.id)} étudiants
-                  </span>
-                  <span className="badge badge-success">
-                    <BookOpen size={12} style={{ display: 'inline', marginRight: '4px' }} />
-                    {getCourseCount(classItem.id)} cours
-                  </span>
-                </div>
+          <>
+            {/* Établissements avec leurs classes */}
+            {establishments.map((establishment) => {
+              const establishmentClasses = getClassesByEstablishment(establishment.id);
+              const isExpanded = expandedEstablishments[establishment.id];
+              
+              return (
+                <div key={establishment.id} style={{
+                  background: 'var(--gray-50)',
+                  border: '2px solid var(--gray-200)',
+                  borderRadius: '12px',
+                  marginBottom: '20px',
+                  overflow: 'hidden'
+                }}>
+                  {/* En-tête de l'établissement */}
+                  <div 
+                    onClick={() => toggleEstablishment(establishment.id)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '16px 20px',
+                      background: 'linear-gradient(135deg, var(--primary), var(--primary-dark))',
+                      color: 'white',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <div className="flex flex-center gap-2">
+                      {isExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                      <Building2 size={24} />
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: '18px' }}>{establishment.name}</h3>
+                        {establishment.city && (
+                          <span style={{ fontSize: '13px', opacity: 0.9 }}>📍 {establishment.city}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex flex-center gap-2">
+                      <span style={{ 
+                        background: 'rgba(255,255,255,0.2)', 
+                        padding: '4px 12px', 
+                        borderRadius: '20px',
+                        fontSize: '13px'
+                      }}>
+                        {establishmentClasses.length} classe{establishmentClasses.length > 1 ? 's' : ''}
+                      </span>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); handleAddClassToEstablishment(establishment.id); }}
+                        style={{
+                          background: 'rgba(255,255,255,0.2)',
+                          border: 'none',
+                          color: 'white',
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          fontSize: '13px'
+                        }}
+                      >
+                        <Plus size={16} />
+                        Ajouter une classe
+                      </button>
+                    </div>
+                  </div>
 
-                <div className="flex gap-2">
-                  <Link to={`/teacher/class/${classItem.id}`} className="btn btn-primary">
-                    <Eye size={16} />
-                  </Link>
-                  <button onClick={() => handleEdit(classItem)} className="btn btn-secondary">
-                    <Edit size={16} />
-                  </button>
-                  <button onClick={() => handleDelete(classItem.id)} className="btn btn-danger">
-                    <Trash2 size={16} />
-                  </button>
+                  {/* Contenu : liste des classes */}
+                  {isExpanded && (
+                    <div style={{ padding: '20px' }}>
+                      {establishmentClasses.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '20px', color: 'var(--gray-600)' }}>
+                          <p>Aucune classe dans cet établissement.</p>
+                          <button 
+                            onClick={() => handleAddClassToEstablishment(establishment.id)}
+                            className="btn btn-primary mt-4"
+                          >
+                            <Plus size={16} />
+                            Créer la première classe
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ 
+                          display: 'grid', 
+                          gridTemplateColumns: 'repeat(4, 1fr)',
+                          gap: '16px'
+                        }}>
+                          {establishmentClasses.map(renderClassCard)}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Classes orphelines (sans établissement) */}
+            {getOrphanClasses().length > 0 && (
+              <div style={{
+                background: 'var(--gray-100)',
+                border: '2px dashed var(--gray-300)',
+                borderRadius: '12px',
+                padding: '20px',
+                marginBottom: '20px'
+              }}>
+                <h3 style={{ color: 'var(--gray-600)', marginBottom: '16px' }}>
+                  Classes sans établissement
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
+                  {getOrphanClasses().map(renderClassCard)}
                 </div>
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
 
         {showModal && (
@@ -108,8 +277,39 @@ export default function ClassesManager() {
             <div className="card" style={{ width: '500px', maxWidth: '90%' }}>
               <h3 className="mb-4">{editingClass ? 'Modifier la classe' : 'Nouvelle classe'}</h3>
               <form onSubmit={handleSubmit}>
+                {!selectedEstablishmentId && (
+                  <div className="input-group">
+                    <label>Établissement *</label>
+                    <select
+                      value={formData.establishmentId}
+                      onChange={(e) => setFormData({ ...formData, establishmentId: e.target.value })}
+                      required
+                    >
+                      <option value="">-- Sélectionner un établissement --</option>
+                      {establishments.map(e => (
+                        <option key={e.id} value={e.id}>{e.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {selectedEstablishmentId && (
+                  <div style={{ 
+                    padding: '12px', 
+                    background: 'var(--gray-50)', 
+                    borderRadius: '8px', 
+                    marginBottom: '16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}>
+                    <Building2 size={18} color="var(--primary)" />
+                    <span>
+                      <strong>Établissement :</strong> {establishments.find(e => e.id === selectedEstablishmentId)?.name}
+                    </span>
+                  </div>
+                )}
                 <div className="input-group">
-                  <label>Nom de la classe</label>
+                  <label>Nom de la classe *</label>
                   <input
                     type="text"
                     value={formData.name}
@@ -128,7 +328,7 @@ export default function ClassesManager() {
                   />
                 </div>
                 <div className="input-group">
-                  <label>Année universitaire</label>
+                  <label>Année universitaire *</label>
                   <input
                     type="text"
                     value={formData.year}
@@ -141,7 +341,7 @@ export default function ClassesManager() {
                   <button type="submit" className="btn btn-primary">
                     {editingClass ? 'Modifier' : 'Créer'}
                   </button>
-                  <button type="button" onClick={() => { setShowModal(false); setEditingClass(null); }} className="btn btn-secondary">
+                  <button type="button" onClick={() => { setShowModal(false); setEditingClass(null); setSelectedEstablishmentId(''); }} className="btn btn-secondary">
                     Annuler
                   </button>
                 </div>

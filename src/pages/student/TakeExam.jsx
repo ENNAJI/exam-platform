@@ -15,10 +15,100 @@ export default function TakeExam() {
   const [timeLeft, setTimeLeft] = useState(0);
   const [submitted, setSubmitted] = useState(false);
 
+  // Fonction pour mélanger un tableau (Fisher-Yates)
+  const shuffleArray = (array) => {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  };
+
+  // Générer un examen aléatoire à partir de la banque de questions
+  const generateRandomExam = (examData) => {
+    const settings = examData.randomSettings;
+    const bank = examData.questionBank || [];
+    
+    if (!settings?.enabled || bank.length === 0) {
+      return examData.questions || [];
+    }
+
+    let selectedQuestions = [];
+    const questionsCount = settings.questionsCount || 10;
+
+    // Si répartition par difficulté est définie
+    const byDifficulty = settings.byDifficulty || {};
+    const hasDistribution = (byDifficulty.easy || 0) + (byDifficulty.medium || 0) + (byDifficulty.hard || 0) > 0;
+
+    if (hasDistribution) {
+      // Sélectionner par difficulté
+      ['easy', 'medium', 'hard'].forEach(difficulty => {
+        const count = byDifficulty[difficulty] || 0;
+        if (count > 0) {
+          const questionsOfDifficulty = bank.filter(q => (q.difficulty || 'medium') === difficulty);
+          const shuffled = shuffleArray(questionsOfDifficulty);
+          selectedQuestions.push(...shuffled.slice(0, count));
+        }
+      });
+    } else {
+      // Sélection aléatoire simple
+      const shuffled = shuffleArray(bank);
+      selectedQuestions = shuffled.slice(0, Math.min(questionsCount, bank.length));
+    }
+
+    // Mélanger l'ordre des questions si activé
+    if (settings.shuffleQuestions !== false) {
+      selectedQuestions = shuffleArray(selectedQuestions);
+    }
+
+    // Mélanger les options de chaque question si activé
+    if (settings.shuffleOptions !== false) {
+      selectedQuestions = selectedQuestions.map(q => {
+        if (q.options && q.options.length > 0 && q.type !== 'truefalse') {
+          const optionsWithIndex = q.options.map((opt, idx) => ({ opt, idx }));
+          const shuffledOptions = shuffleArray(optionsWithIndex);
+          
+          // Mettre à jour les réponses correctes
+          let newCorrectAnswer = q.correctAnswer;
+          let newCorrectAnswers = q.correctAnswers;
+          
+          if (q.type === 'single') {
+            newCorrectAnswer = shuffledOptions.findIndex(o => o.idx === q.correctAnswer);
+          } else if (q.type === 'multiple' && q.correctAnswers) {
+            newCorrectAnswers = q.correctAnswers.map(ca => 
+              shuffledOptions.findIndex(o => o.idx === ca)
+            );
+          }
+          
+          return {
+            ...q,
+            options: shuffledOptions.map(o => o.opt),
+            correctAnswer: newCorrectAnswer,
+            correctAnswers: newCorrectAnswers
+          };
+        }
+        return q;
+      });
+    }
+
+    // Assigner de nouveaux IDs pour éviter les conflits
+    return selectedQuestions.map((q, idx) => ({
+      ...q,
+      id: `gen_${Date.now()}_${idx}`
+    }));
+  };
+
   useEffect(() => {
     const found = storage.getExamById(id);
     if (found && found.isActive) {
-      setExam(found);
+      // Vérifier si génération aléatoire est activée
+      if (found.randomSettings?.enabled && found.questionBank?.length > 0) {
+        const generatedQuestions = generateRandomExam(found);
+        setExam({ ...found, questions: generatedQuestions });
+      } else {
+        setExam(found);
+      }
       setTimeLeft(found.duration * 60);
     } else {
       navigate('/student');
@@ -29,26 +119,78 @@ export default function TakeExam() {
     if (submitted) return;
     setSubmitted(true);
 
-    let correctAnswers = 0;
+    let totalPoints = 0;
+    let earnedPoints = 0;
+    const questionResults = [];
+
     exam.questions.forEach((q, index) => {
-      if (answers[index] === q.correctAnswer) {
-        correctAnswers++;
+      const questionPoints = q.points || 1;
+      totalPoints += questionPoints;
+      let isCorrect = false;
+      let partialScore = 0;
+
+      switch (q.type) {
+        case 'single':
+        case 'truefalse':
+        default:
+          isCorrect = answers[index] === q.correctAnswer;
+          if (isCorrect) earnedPoints += questionPoints;
+          break;
+
+        case 'multiple':
+          const studentAnswers = answers[index] || [];
+          const correctAnswersList = q.correctAnswers || [];
+          if (correctAnswersList.length > 0) {
+            const correctSelected = studentAnswers.filter(a => correctAnswersList.includes(a)).length;
+            const incorrectSelected = studentAnswers.filter(a => !correctAnswersList.includes(a)).length;
+            partialScore = Math.max(0, (correctSelected - incorrectSelected) / correctAnswersList.length);
+            earnedPoints += questionPoints * partialScore;
+            isCorrect = partialScore === 1;
+          }
+          break;
+
+        case 'open':
+          const studentAnswer = (answers[index] || '').toLowerCase().trim();
+          const keywords = q.keywords || [];
+          if (keywords.length > 0) {
+            const matchedKeywords = keywords.filter(kw => 
+              studentAnswer.includes(kw.toLowerCase())
+            ).length;
+            partialScore = matchedKeywords / keywords.length;
+            earnedPoints += questionPoints * partialScore;
+            isCorrect = partialScore >= 0.5;
+          } else {
+            // Sans mots-clés, la question nécessite une correction manuelle
+            questionResults.push({ questionId: q.id, needsManualReview: true, studentAnswer });
+          }
+          break;
       }
+
+      questionResults.push({
+        questionId: q.id,
+        type: q.type || 'single',
+        studentAnswer: answers[index],
+        isCorrect,
+        partialScore,
+        points: questionPoints
+      });
     });
 
-    const score = Math.round((correctAnswers / exam.questions.length) * 100);
+    const score = Math.round((earnedPoints / totalPoints) * 100);
 
     storage.saveResult({
       examId: exam.id,
       studentName,
       score,
-      correctAnswers,
+      earnedPoints,
+      totalPoints,
       totalQuestions: exam.questions.length,
-      answers
+      answers,
+      questionResults
     });
 
     navigate(`/student/result/${exam.id}`, {
-      state: { score, correctAnswers, totalQuestions: exam.questions.length }
+      state: { score, earnedPoints, totalPoints, totalQuestions: exam.questions.length }
     });
   }, [submitted, exam, answers, studentName, navigate]);
 
@@ -85,6 +227,19 @@ export default function TakeExam() {
 
   const handleAnswer = (optionIndex) => {
     setAnswers({ ...answers, [currentQuestion]: optionIndex });
+  };
+
+  const handleMultipleAnswer = (optionIndex) => {
+    const current = answers[currentQuestion] || [];
+    if (current.includes(optionIndex)) {
+      setAnswers({ ...answers, [currentQuestion]: current.filter(i => i !== optionIndex) });
+    } else {
+      setAnswers({ ...answers, [currentQuestion]: [...current, optionIndex] });
+    }
+  };
+
+  const handleOpenAnswer = (text) => {
+    setAnswers({ ...answers, [currentQuestion]: text });
   };
 
   const startExam = (e) => {
@@ -162,22 +317,61 @@ export default function TakeExam() {
 
           <h3 className="mb-4">{question.text}</h3>
 
-          <div>
-            {question.options.map((option, index) => (
-              <div
-                key={index}
-                className={`option-item ${answers[currentQuestion] === index ? 'selected' : ''}`}
-                onClick={() => handleAnswer(index)}
-              >
-                <input
-                  type="radio"
-                  checked={answers[currentQuestion] === index}
-                  onChange={() => handleAnswer(index)}
-                />
-                <span>{option}</span>
-              </div>
-            ))}
-          </div>
+          {/* QCM Réponse unique ou Vrai/Faux */}
+          {(question.type === 'single' || question.type === 'truefalse' || !question.type) && (
+            <div>
+              {question.options.map((option, index) => (
+                <div
+                  key={index}
+                  className={`option-item ${answers[currentQuestion] === index ? 'selected' : ''}`}
+                  onClick={() => handleAnswer(index)}
+                >
+                  <input
+                    type="radio"
+                    checked={answers[currentQuestion] === index}
+                    onChange={() => handleAnswer(index)}
+                  />
+                  <span>{option}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* QCM Réponses multiples */}
+          {question.type === 'multiple' && (
+            <div>
+              <p style={{ fontSize: '13px', color: 'var(--gray-600)', marginBottom: '12px' }}>
+                Plusieurs réponses possibles
+              </p>
+              {question.options.map((option, index) => (
+                <div
+                  key={index}
+                  className={`option-item ${(answers[currentQuestion] || []).includes(index) ? 'selected' : ''}`}
+                  onClick={() => handleMultipleAnswer(index)}
+                >
+                  <input
+                    type="checkbox"
+                    checked={(answers[currentQuestion] || []).includes(index)}
+                    onChange={() => handleMultipleAnswer(index)}
+                  />
+                  <span>{option}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Question ouverte */}
+          {question.type === 'open' && (
+            <div>
+              <textarea
+                value={answers[currentQuestion] || ''}
+                onChange={(e) => handleOpenAnswer(e.target.value)}
+                placeholder="Écrivez votre réponse ici..."
+                rows={6}
+                style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--gray-300)', fontSize: '15px' }}
+              />
+            </div>
+          )}
         </div>
 
         <div className="flex flex-between">

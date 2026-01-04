@@ -1,0 +1,49 @@
+[
+  {
+    "name": "Université Demo",
+    "city": "Casablanca",
+    "type": "university",
+    "id": "1767548546979",
+    "createdAt": "2026-01-04T17:42:26.979Z"
+  },
+  {
+    "name": "ENSAM Casablanca",
+    "city": "Casablanca",
+    "type": "university",
+    "id": "1767548700963",
+    "teacherId": "1",
+    "createdAt": "2026-01-04T17:45:00.963Z"
+  },
+  {
+    "name": "EMSI Anfa",
+    "city": "Casablanca",
+    "type": "university",
+    "id": "1767548717112",
+    "teacherId": "1",
+    "createdAt": "2026-01-04T17:45:17.112Z"
+  },
+  {
+    "name": "EMSI Moulay youssef",
+    "city": "Casablanca",
+    "type": "university",
+    "id": "1767548727464",
+    "teacherId": "1",
+    "createdAt": "2026-01-04T17:45:27.464Z"
+  },
+  {
+    "name": "EMSI Maarif",
+    "city": "Casablanca",
+    "type": "university",
+    "id": "1767548738329",
+    "teacherId": "1",
+    "createdAt": "2026-01-04T17:45:38.329Z"
+  },
+  {
+    "name": "EMSI Orangers",
+    "city": "Casablanca",
+    "type": "university",
+    "id": "1767548748995",
+    "teacherId": "1",
+    "createdAt": "2026-01-04T17:45:48.995Z"
+  }
+]

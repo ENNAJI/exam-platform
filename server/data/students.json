@@ -1,0 +1,62 @@
+[
+  {
+    "firstName": "Malak",
+    "lastName": "Ennaji",
+    "email": "malak.ennaji@demo.com",
+    "password": "demo123",
+    "code": "ETU001",
+    "classId": "1767548546979",
+    "id": "1767548546979",
+    "token": "22kph56qbwz",
+    "createdAt": "2026-01-04T17:42:26.980Z",
+    "isActive": true
+  },
+  {
+    "firstName": "Jean",
+    "lastName": "Dupont",
+    "email": "jean.dupont@demo.com",
+    "password": "demo123",
+    "code": "ETU002",
+    "classId": "1767548546979",
+    "id": "1767548546980",
+    "token": "xbz53hz7qyg",
+    "createdAt": "2026-01-04T17:42:26.980Z",
+    "isActive": true
+  },
+  {
+    "firstName": "Marie",
+    "lastName": "Martin",
+    "email": "marie.martin@demo.com",
+    "password": "demo123",
+    "code": "ETU003",
+    "classId": "1767548546979",
+    "id": "1767548546980",
+    "token": "c5w6f9deffp",
+    "createdAt": "2026-01-04T17:42:26.980Z",
+    "isActive": true
+  },
+  {
+    "firstName": "Firdaous",
+    "lastName": "Marzouk",
+    "email": "firdaous.marzouk@test.test",
+    "code": "00112233",
+    "password": "00112233",
+    "classId": "1767548790669",
+    "id": "1767551200862",
+    "token": "2txnaqkv004",
+    "createdAt": "2026-01-04T18:26:40.862Z",
+    "isActive": true
+  },
+  {
+    "firstName": "mohamed",
+    "lastName": "ennaji",
+    "email": "mohamed.ennaji@test.test",
+    "code": "00112233",
+    "password": "00112233",
+    "classId": "1767548779081",
+    "id": "1767558797182",
+    "token": "v3qh33wvk2e",
+    "createdAt": "2026-01-04T20:33:17.182Z",
+    "isActive": true
+  }
+]
